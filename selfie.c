@@ -110,7 +110,7 @@ uint64_t open(char* filename, uint64_t flags, uint64_t mode);
 
 // selfie bootstraps void* and unsigned long to uint64_t* and uint64_t, respectively!
 void* malloc(unsigned long);
-
+uint64_t fork();
 // -----------------------------------------------------------------
 // ----------------------- LIBRARY PROCEDURES ----------------------
 // -----------------------------------------------------------------
@@ -990,6 +990,8 @@ void     implement_openat(uint64_t* context);
 void emit_malloc();
 void implement_brk(uint64_t* context);
 
+void emit_fork();
+void implement_fork(uint64_t* context);
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 uint64_t debug_read  = 0;
@@ -1002,6 +1004,8 @@ uint64_t SYSCALL_READ   = 63;
 uint64_t SYSCALL_WRITE  = 64;
 uint64_t SYSCALL_OPENAT = 56;
 uint64_t SYSCALL_BRK    = 214;
+
+uint64_t SYSCALL_FORK   = 402;
 
 /* DIRFD_AT_FDCWD corresponds to AT_FDCWD in fcntl.h and
    is passed as first argument of the openat system call
@@ -5135,7 +5139,7 @@ void selfie_compile() {
   emit_open();
   emit_malloc();
   emit_switch();
-
+	emit_fork();
   // implicitly declare main procedure in global symbol table
   // copy "main" string into zeroed double word to obtain unique hash
   create_symbol_table_entry(GLOBAL_TABLE, string_copy("main"), 0, PROCEDURE, UINT64_T, 0, 0);
@@ -6671,6 +6675,25 @@ void implement_brk(uint64_t* context) {
       println();
     }
   }
+
+  set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
+}
+
+void emit_fork() {
+  create_symbol_table_entry(LIBRARY_TABLE, "fork", 0, PROCEDURE, UINT64_T, 0, binary_length);
+
+  emit_addi(REG_A7, REG_ZR, SYSCALL_FORK);
+  emit_ecall();
+
+  emit_jalr(REG_ZR, REG_RA, 0);
+}
+
+void implement_fork(uint64_t* context) {
+  uint64_t pid;
+
+  pid = fork();
+
+  *(get_regs(context) + REG_A0) = pid;
 
   set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
 }
@@ -9612,6 +9635,8 @@ uint64_t handle_system_call(uint64_t* context) {
     implement_write(context);
   else if (a7 == SYSCALL_OPENAT)
     implement_openat(context);
+	else if (a7 == SYSCALL_FORK)
+    implement_fork(context);
   else if (a7 == SYSCALL_EXIT) {
     implement_exit(context);
 
