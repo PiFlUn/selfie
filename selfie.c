@@ -7441,7 +7441,7 @@ void constrain_beq() {
 
   op1 = (char*) *(reg_sym + rs1);
   op2 = (char*) *(reg_sym + rs2);
-  fork();
+
   if (op1 == (char*) 0) {
     if (op2 == (char*) 0) {
       do_beq();
