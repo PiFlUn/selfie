@@ -111,6 +111,7 @@ uint64_t open(char* filename, uint64_t flags, uint64_t mode);
 // selfie bootstraps void* and unsigned long to uint64_t* and uint64_t, respectively!
 void* malloc(unsigned long);
 uint64_t fork();
+uint64_t getpid();
 
 // -----------------------------------------------------------------
 // ----------------------- LIBRARY PROCEDURES ----------------------
@@ -993,6 +994,9 @@ void implement_brk(uint64_t* context);
 
 void emit_fork();
 void implement_fork(uint64_t* context);
+
+void emit_pid();
+void implement_pid(uint64_t* context);
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 uint64_t debug_read  = 0;
@@ -1007,6 +1011,7 @@ uint64_t SYSCALL_OPENAT = 56;
 uint64_t SYSCALL_BRK    = 214;
 
 uint64_t SYSCALL_FORK   = 402;
+uint64_t SYSCALL_PID    = 405;
 
 /* DIRFD_AT_FDCWD corresponds to AT_FDCWD in fcntl.h and
    is passed as first argument of the openat system call
@@ -5140,6 +5145,7 @@ void selfie_compile() {
   emit_malloc();
   emit_switch();
   emit_fork();
+  emit_pid();
   // implicitly declare main procedure in global symbol table
   // copy "main" string into zeroed double word to obtain unique hash
   create_symbol_table_entry(GLOBAL_TABLE, string_copy("main"), 0, PROCEDURE, UINT64_T, 0, 0);
@@ -6221,7 +6227,7 @@ void implement_read(uint64_t* context) {
         store_symbolic_memory(vbuffer,
                               0,
                               0,
-          										smt_variable("i", bytes_to_read * 8),
+                              smt_variable("i", bytes_to_read * 8),
                               bytes_to_read * 8);
 
         // save symbolic memory here since context switching has already happened
@@ -6697,6 +6703,21 @@ void implement_fork(uint64_t* context) {
   pid = fork();
 
   *(get_regs(context) + REG_A0) = pid;
+
+  set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
+}
+
+void emit_pid() {
+  create_symbol_table_entry(LIBRARY_TABLE, "getpid", 0, PROCEDURE, UINT64_T, 0, binary_length);
+
+  emit_addi(REG_A7, REG_ZR, SYSCALL_PID);
+  emit_ecall();
+
+  emit_jalr(REG_ZR, REG_RA, 0);
+}
+
+void implement_pid(uint64_t* context) {
+  *(get_regs(context) + REG_A0) = getpid();
 
   set_pc(context, get_pc(context) + INSTRUCTIONSIZE);
 }
@@ -8044,7 +8065,7 @@ void merge(uint64_t* active_context, uint64_t* mergeable_context, uint64_t locat
       current_mergeable_context = (uint64_t*) 0;
     }
 
-      return;
+    return;
   }
 
   if (active_context == mergeable_context) {
@@ -8054,14 +8075,14 @@ void merge(uint64_t* active_context, uint64_t* mergeable_context, uint64_t locat
       if (pc == get_pc(current_mergeable_context))
         merge(active_context, current_mergeable_context, pc);
     return;
-}
+  }
 
   callstack_comparison = compare_call_stacks(active_context, mergeable_context);
 
   if (callstack_comparison == 2) { // mergeable context has longer call stack
     throw_exception(EXCEPTION_RECURSION, 0);
     return;
-  } else if (callstack_comparison != 0) { // not equal 
+  } else if (callstack_comparison != 0) { // not equal
     if (current_mergeable_context != (uint64_t*) 0) {
       add_mergeable_context(current_mergeable_context);
       current_mergeable_context = (uint64_t*) 0;
@@ -8097,7 +8118,7 @@ void merge(uint64_t* active_context, uint64_t* mergeable_context, uint64_t locat
   if (current_mergeable_context != (uint64_t*) 0)
     if (pc == get_pc(current_mergeable_context))
       if (compare_call_stacks(active_context, current_mergeable_context) != 1)
-      merge(active_context, current_mergeable_context, pc);
+        merge(active_context, current_mergeable_context, pc);
 }
 
 void merge_symbolic_memory_and_registers(uint64_t* active_context, uint64_t* mergeable_context) {
@@ -8475,7 +8496,7 @@ uint64_t* merge_if_possible_and_get_next_context(uint64_t* context) {
         if (get_pc(context) == get_pc(current_mergeable_context)) {
           if (merge_enabled)
             if (compare_call_stacks(context, current_mergeable_context) != 1)
-            merge(context, current_mergeable_context, get_pc(context));
+              merge(context, current_mergeable_context, get_pc(context));
             else
               mergeable = 0;
           else
@@ -8495,8 +8516,8 @@ uint64_t* merge_if_possible_and_get_next_context(uint64_t* context) {
         if (context) {
           if (get_pc(context) == get_pc(current_mergeable_context)) {
             if (compare_call_stacks(context, current_mergeable_context) == 0) {
-            pauseable = 0;
-            mergeable = 1;
+              pauseable = 0;
+              mergeable = 1;
             } else if (compare_call_stacks(context, current_mergeable_context) == 2)
               throw_exception(EXCEPTION_RECURSION, 0);
           }
@@ -8519,7 +8540,7 @@ uint64_t* merge_if_possible_and_get_next_context(uint64_t* context) {
         if (current_mergeable_context != (uint64_t*) 0)
           if (get_pc(context) == get_pc(current_mergeable_context)) {
             if (compare_call_stacks(context, current_mergeable_context) == 0)
-            mergeable = 1;
+              mergeable = 1;
             else if (compare_call_stacks(context, current_mergeable_context) == 2)
               throw_exception(EXCEPTION_RECURSION, 0);
           }
@@ -8583,24 +8604,24 @@ uint64_t compare_call_stacks(uint64_t* active_context, uint64_t* mergeable_conte
   entry_active = get_call_stack(active_context);
   entry_mergeable = get_call_stack(mergeable_context);
 
-  if (debug_merge) 
+  if (debug_merge)
     printf1("; Call stack of active context (%d):\n", (char*) active_context);
 
   while(entry_active) {
 
-    if (debug_merge) 
+    if (debug_merge)
       printf1("; %x\n", (char*) *(entry_active + 1));
 
     active_context_stack_length = active_context_stack_length + 1;
     entry_active = (uint64_t*) *(entry_active + 0);
   }
 
-  if (debug_merge) 
+  if (debug_merge)
     printf1("; Call stack of mergeable context (%d):\n", (char*) mergeable_context);
 
   while(entry_mergeable) {
 
-    if (debug_merge) 
+    if (debug_merge)
       printf1("; %x\n", (char*) *(entry_mergeable + 1));
 
     mergeable_context_stack_length = mergeable_context_stack_length + 1;
@@ -8647,12 +8668,12 @@ uint64_t compare_call_stacks(uint64_t* active_context, uint64_t* mergeable_conte
 
   if (entry_mergeable == (uint64_t*) 0) {
     if (debug_merge)
-        print("; Result of call stack comparison -> 0 (they are equal)\n");
+      print("; Result of call stack comparison -> 0 (they are equal)\n");
     return 0; // both stacks have the same length and entries
   }
   else {
     if (debug_merge)
-        print("; Result of call stack comparison -> 2 (mergeable_context has longer call stack)\n");
+      print("; Result of call stack comparison -> 2 (mergeable_context has longer call stack)\n");
     return 2; // active context has no more entries on the stack, but mergeable context still does
   }
 }
@@ -9049,7 +9070,7 @@ void interrupt() {
       // if both contexts are at the same program location, they can be merged
       if (pc == get_pc(current_mergeable_context))
         if (compare_call_stacks(current_context, current_mergeable_context) != 1)
-        merge(current_context, current_mergeable_context, pc);
+          merge(current_context, current_mergeable_context, pc);
 
     // check if the current context has reached a merge location
     if (pc == get_merge_location(current_context))
@@ -9750,6 +9771,8 @@ uint64_t handle_system_call(uint64_t* context) {
     implement_openat(context);
   else if (a7 == SYSCALL_FORK)
     implement_fork(context);
+  else if (a7 == SYSCALL_PID)
+    implement_pid(context);
   else if (a7 == SYSCALL_EXIT) {
     implement_exit(context);
 
@@ -10091,7 +10114,7 @@ uint64_t monster(uint64_t* to_context) {
   print("monster\n");
 
   // use extension ".smt" in name of SMT-LIB file
-  smt_name = replace_extension(binary_name, "smt");
+  smt_name = replace_extension(binary_name, "pid.smt");
 
   // assert: smt_name is mapped and not longer than MAX_FILENAME_LENGTH
 
