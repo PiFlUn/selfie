@@ -10107,14 +10107,24 @@ uint64_t monster(uint64_t* to_context) {
   uint64_t  timeout;
   uint64_t* from_context;
   uint64_t  exception;
+  char* buffer;
+  char* pid;
+  pid = string_alloc(10);
+  itoa(getpid(), pid, 10, 0);
+
 
   if (debug_merge)
     from_context = (uint64_t*) 0;
 
   print("monster\n");
 
+  printf1("Pid: %d\n", (char*) getpid());
+
+
   // use extension ".smt" in name of SMT-LIB file
-  smt_name = replace_extension(binary_name, "pid.smt");
+  buffer = string_alloc(1 + string_length(pid) + 1 + string_length(".smt") + 1);
+  sprintf2(buffer, "%s%s", pid, ".smt");
+  smt_name = replace_extension(binary_name, buffer);
 
   // assert: smt_name is mapped and not longer than MAX_FILENAME_LENGTH
 
