@@ -192,6 +192,8 @@ uint64_t round_up(uint64_t n, uint64_t m);
 uint64_t* smalloc(uint64_t size);
 uint64_t* zalloc(uint64_t size);
 
+uint64_t is_child(uint64_t pid);
+
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 char* SELFIE_URL = (char*) 0;
@@ -1274,6 +1276,9 @@ void      push_onto_call_stack(uint64_t* context, uint64_t address);
 uint64_t  pop_off_call_stack(uint64_t* context);
 uint64_t  compare_call_stacks(uint64_t* active_context, uint64_t* mergeable_context);
 
+char *format_pid(char *pid);
+void replace_pid(char *filename, char *pid);
+
 // ------------------------ GLOBAL VARIABLES -----------------------
 
 uint64_t max_execution_depth = 1; // in number of instructions, unbounded with 0
@@ -1304,6 +1309,7 @@ uint64_t* current_mergeable_context                   = (uint64_t*) 0; // curren
 uint64_t DELETED                         = -1; // indicates that a symbolic memory word has been deleted
 uint64_t MERGED                          = -2; // indicates that a symbolic memory word has been merged
 uint64_t BEGIN_OF_SHARED_SYMBOLIC_MEMORY = -3; // indicates the beginning of the shared symbolic memory space
+uint64_t MAX_PID_LENGTH = 5; // maximum length of pid in .smt filenames (decimal system)
 
 uint64_t beq_limit; // limit of symbolic beq instructions on each part of the path between two merge locations
 
@@ -2387,7 +2393,7 @@ void put_character(uint64_t c) {
   }
 }
 
-char *extract_filename_from_path(char *path) {
+char* extract_filename_from_path(char* path) {
   uint64_t tmp;
   uint64_t l;
   char* source;
@@ -2396,7 +2402,6 @@ char *extract_filename_from_path(char *path) {
 
   l = string_length(path);
   source = string_alloc(l + 1);
-  // source = (char*) 0;
 
   current_pos_of_reading = 0;
   current_pos_of_writing = 0;
@@ -2719,6 +2724,14 @@ uint64_t* zalloc(uint64_t size) {
   }
 
   return memory;
+}
+
+uint64_t is_child(uint64_t pid) {
+  if (pid == 0) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
@@ -6180,6 +6193,9 @@ void implement_exit(uint64_t* context) {
             smt_value(*(registers + REG_A0), (char*) *(reg_sym + REG_A0)));
     print_code_context_for_instruction(pc);
 
+    printf1("*(registers + REG_A0) is %d \n", (char *)*(registers + REG_A0));
+
+
     if (debug_merge)
       printf1(" -> exiting context: %d", (char*) context);
 
@@ -7493,12 +7509,64 @@ void do_beq() {
   ic_beq = ic_beq + 1;
 }
 
+// Assert: char* pid parameter is always allocated with length 5
+char *format_pid(char *pid){
+  uint64_t length;
+
+  length = string_length(pid);
+  string_reverse(pid);
+
+  while(length < 5){
+    *(pid + length) = '0';
+    length = length + 1;
+  }
+
+  string_reverse(pid);
+
+  return pid;
+}
+
+// Assert: char* filename of format filename.pid.smt, where pid has length 5
+// and char* pid also has length 5 (Format for pid 123 is e.g. 00123)
+void replace_pid(char *filename, char *pid){
+  // Find 2nd . from the back
+  uint64_t i;
+  uint64_t j;
+  uint64_t counter;
+  uint64_t insert_pos;
+
+  counter = 0;
+  i = string_length(filename);
+  insert_pos = 0;
+  // Find 2nd . from the back
+  while(insert_pos == 0){
+    i = i - 1;
+    if(*(filename + i) == '.'){
+      counter = counter + 1;
+      if(counter == 2){
+        insert_pos = i;
+      }
+    }
+  }
+
+  // Replace pid
+  i = i + 1;
+  j = 0;
+  while(j < 5){
+    *(filename + i) = *(pid + j);
+    i = i + 1;
+    j = j + 1;
+  }
+}
+
 void constrain_beq() {
   char* op1;
   char* op2;
   char* bvar;
   char* pvar;
   uint64_t* waiting_context;
+  uint64_t pid;
+  char* pid_string;
 
   op1 = (char*) *(reg_sym + rs1);
   op2 = (char*) *(reg_sym + rs2);
@@ -7532,10 +7600,23 @@ void constrain_beq() {
     // save symbolic memory so that it is copied correctly afterwards
     set_symbolic_memory(current_context, symbolic_memory);
 
-    waiting_context = copy_context(current_context, pc + imm, smt_binary("and", pvar, bvar));
-
     // the copied context is executed later and takes the other path
-    add_waiting_context(waiting_context);
+    // add_waiting_context(waiting_context);
+    pid = fork();
+
+    if (is_child(pid)) {
+      // store process ID as string to append it later
+      pid_string = string_alloc(1 + MAX_PID_LENGTH + 1);
+      itoa(getpid(), pid_string, 10, 0);
+      format_pid(pid_string);
+      replace_pid(smt_name, pid_string);
+      smt_fd = open_write_only(smt_name);
+      output_fd = smt_fd;
+      output_name = smt_name;
+
+      waiting_context = copy_context(current_context, pc + imm, smt_binary("and", pvar, bvar));
+      mipster_switch(waiting_context, max_execution_depth - get_execution_depth(waiting_context));
+    }
 
     path_condition = smt_binary("and", pvar, smt_unary("not", bvar));
 
@@ -10152,8 +10233,9 @@ uint64_t monster(uint64_t* to_context) {
   print("monster\n");
 
   // store process ID as string to append it later
-  pid = string_alloc(MAX_INTEGER_LENGTH);
+  pid = string_alloc(1 + MAX_PID_LENGTH + 1);
   itoa(getpid(), pid, 10, 0);
+  pid = format_pid(pid);
 
   // use extension ".smt" in name of SMT-LIB file
   buffer = string_alloc(1 + string_length(pid) + 1 + string_length(".smt") + 1);
@@ -10184,7 +10266,7 @@ uint64_t monster(uint64_t* to_context) {
     if (string_compare(peek_argument(1), "--debug-merge")) {
       debug_merge = 1;
       merge_enabled = 1;
-
+      timeout = max_execution_depth - get_execution_depth(to_context);
       get_argument();
     }
 
