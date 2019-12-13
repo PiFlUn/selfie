@@ -8037,7 +8037,7 @@ char* smt_variable(char* prefix, uint64_t bits) {
 
   svar = string_alloc(string_length(prefix) + 20); // 64-bit numbers require up to 20 decimal digits
   string_length(svar);
-  sprintf2(svar, "%s%d", prefix, (char*) variable_version);
+  sprintf3(svar, "%s%d-%d", prefix, (char*) variable_version, (char*) getpid());
 
   printf2("(declare-fun %s () (_ BitVec %d)); variable for ", svar, (char*) bits);
   print_code_context_for_instruction(pc);
