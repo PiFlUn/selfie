@@ -150,6 +150,7 @@ uint64_t string_length(char* s);
 char*    string_copy(char* s);
 void     string_reverse(char* s);
 uint64_t string_compare(char* s, char* t);
+char*    string_concat(char* s1, char* s2);
 
 uint64_t atoi(char* s);
 char*    itoa(uint64_t n, char* s, uint64_t b, uint64_t a);
@@ -1288,6 +1289,8 @@ uint64_t variable_version = 0; // generates unique SMT-LIB variable names
 uint64_t* symbolic_contexts = (uint64_t*) 0;
 
 char* path_condition = (char*) 0;
+
+char* pid_chain = (char*) 0;  // chain of pids, updated after forking, used for reconstruction
 
 uint64_t* symbolic_memory = (uint64_t*) 0;
 
@@ -7559,6 +7562,13 @@ void replace_pid(char *filename, char *pid){
   }
 }
 
+char* string_concat(char* s1, char* s2){
+  char* result;
+  result = string_alloc(1 + string_length(s1) + 1 + string_length(s2) + 1);
+  sprintf2(result, "%s%s", s1, s2);
+  return result;
+}
+
 void constrain_beq() {
   char* op1;
   char* op2;
@@ -7603,16 +7613,22 @@ void constrain_beq() {
     // the copied context is executed later and takes the other path
     // add_waiting_context(waiting_context);
     pid = fork();
+    pid_string = string_alloc(1 + MAX_PID_LENGTH + 1);
+    itoa(getpid(), pid_string, 10, 0);
 
     if (is_child(pid)) {
       // store process ID as string to append it later
-      pid_string = string_alloc(1 + MAX_PID_LENGTH + 1);
-      itoa(getpid(), pid_string, 10, 0);
+
+      pid_chain = string_concat(pid_chain, "-");
+      pid_chain = string_concat(pid_chain, pid_string);
+
       format_pid(pid_string);
       replace_pid(smt_name, pid_string);
       smt_fd = open_write_only(smt_name);
       output_fd = smt_fd;
       output_name = smt_name;
+
+      printf1("; %s\n", pid_chain);
 
       waiting_context = copy_context(current_context, pc + imm, smt_binary("and", pvar, bvar));
       mipster_switch(waiting_context, max_execution_depth - get_execution_depth(waiting_context));
@@ -10254,6 +10270,10 @@ uint64_t monster(uint64_t* to_context) {
 
   output_name = smt_name;
   output_fd   = smt_fd;
+
+  printf1("; %d\n", (char*) getpid());
+  pid_chain = string_alloc(1 + MAX_PID_LENGTH + 1);
+  itoa(getpid(), pid_chain, 10, 0);
 
   if (number_of_remaining_arguments() > 1)
     if (string_compare(peek_argument(1), "--merge-enabled")) {
