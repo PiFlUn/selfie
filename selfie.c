@@ -6196,9 +6196,6 @@ void implement_exit(uint64_t* context) {
             smt_value(*(registers + REG_A0), (char*) *(reg_sym + REG_A0)));
     print_code_context_for_instruction(pc);
 
-    printf1("*(registers + REG_A0) is %d \n", (char *)*(registers + REG_A0));
-
-
     if (debug_merge)
       printf1(" -> exiting context: %d", (char*) context);
 
@@ -7630,30 +7627,30 @@ void constrain_beq() {
 
       printf1("; %s\n", pid_chain);
 
-      waiting_context = copy_context(current_context, pc + imm, smt_binary("and", pvar, bvar));
-      mipster_switch(waiting_context, max_execution_depth - get_execution_depth(waiting_context));
+      smt_binary("and", pvar, bvar);
+      pc = pc + imm;
+    } else {
+      path_condition = smt_binary("and", pvar, smt_unary("not", bvar));
+
+      // set the merge location only when merging is enabled
+      if (merge_enabled)
+        set_merge_location(current_context, find_merge_location(imm));
+
+      if (debug_merge) {
+        print("; a new context was created at ");
+        print_code_context_for_instruction(pc);
+        printf4(" -> active context: %d, waiting context: %d (merge locations: %x, %x)\n", (char*) current_context, (char*) waiting_context, (char*) get_merge_location(current_context), (char*) get_merge_location(waiting_context));
+      }
+
+      // check if a context is waiting to be merged
+      if (current_mergeable_context != (uint64_t*) 0) {
+        // we cannot merge with this one (yet), so we push it back onto the stack of mergeable contexts
+        add_mergeable_context(current_mergeable_context);
+        current_mergeable_context = (uint64_t*) 0;
+      }
+
+      pc = pc + INSTRUCTIONSIZE;
     }
-
-    path_condition = smt_binary("and", pvar, smt_unary("not", bvar));
-
-    // set the merge location only when merging is enabled
-    if (merge_enabled)
-      set_merge_location(current_context, find_merge_location(imm));
-
-    if (debug_merge) {
-      print("; a new context was created at ");
-      print_code_context_for_instruction(pc);
-      printf4(" -> active context: %d, waiting context: %d (merge locations: %x, %x)\n", (char*) current_context, (char*) waiting_context, (char*) get_merge_location(current_context), (char*) get_merge_location(waiting_context));
-    }
-
-    // check if a context is waiting to be merged
-    if (current_mergeable_context != (uint64_t*) 0) {
-      // we cannot merge with this one (yet), so we push it back onto the stack of mergeable contexts
-      add_mergeable_context(current_mergeable_context);
-      current_mergeable_context = (uint64_t*) 0;
-    }
-
-    pc = pc + INSTRUCTIONSIZE;
 
   } else {
     // if the limit of symbolic beq instructions is reached, the part of the path still continues until it can be merged or has reached its
