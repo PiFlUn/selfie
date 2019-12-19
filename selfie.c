@@ -7616,15 +7616,14 @@ void constrain_beq() {
     if (is_child(pid)) {
       // store process ID as string to append it later
 
-      pid_chain = string_concat(pid_chain, "-");
-      pid_chain = string_concat(pid_chain, pid_string);
-
-      format_pid(pid_string);
+      pid_string = format_pid(pid_string);
       replace_pid(smt_name, pid_string);
       smt_fd = open_write_only(smt_name);
       output_fd = smt_fd;
       output_name = smt_name;
 
+      pid_chain = string_concat(pid_chain, "-");
+      pid_chain = string_concat(pid_chain, pid_string);
       printf1("; %s\n", pid_chain);
 
       smt_binary("and", pvar, bvar);
@@ -10268,9 +10267,8 @@ uint64_t monster(uint64_t* to_context) {
   output_name = smt_name;
   output_fd   = smt_fd;
 
-  printf1("; %d\n", (char*) getpid());
-  pid_chain = string_alloc(1 + MAX_PID_LENGTH + 1);
-  itoa(getpid(), pid_chain, 10, 0);
+  printf1("; %s\n", pid);
+  pid_chain = string_copy(pid);
 
   if (number_of_remaining_arguments() > 1)
     if (string_compare(peek_argument(1), "--merge-enabled")) {
