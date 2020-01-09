@@ -35,10 +35,10 @@ class MyTreeClass(MyNodeClass, NodeMixin):
       fp = open(os.path.dirname(path) + "/" + file, 'r')
       first_line = fp.readline()
       first_line = first_line.replace("; ", "", 1).replace("\n", "", 1)
-      print(first_line)
+#      print(first_line)
       fp.close()
       order_list = first_line.split("-")
-      print(order_list)
+#      print(order_list)
       pre_tree.append(order_list)
       
     return pre_tree
@@ -52,7 +52,7 @@ class MyTreeClass(MyNodeClass, NodeMixin):
       elif len(smt) == 1:
         tree.append(MyTreeClass(str(pre_tree[0][0])))  # root has no parent
       else:
-        print('Something went horribly wrong. exit')
+        print('Something went horribly wrong. Exit.')
         exit()
     
     return tree
@@ -84,7 +84,7 @@ if not smt_files:
   exit()
 # print(smt_files)
 
-output_file = os.path.dirname(path) + "/" + name + ".smt"
+output_file = os.path.dirname(path) + "/" + name + "_par.smt"
 # print(output_file)
 
 pre_tree = MyTreeClass.get_tree_structure(smt_files)
@@ -92,8 +92,8 @@ pre_tree = MyTreeClass.get_tree_structure(smt_files)
 tree = MyTreeClass.build_tree(pre_tree)
 
 # Print the tree in a visually pleasent way
-for pre, fill, node in RenderTree(tree[0]):
-  print("%s%s" % (pre, node.name))
+# for pre, fill, node in RenderTree(tree[0]):
+#  print("%s%s" % (pre, node.name))
   
 pid_order = [node.name for node in PreOrderIter(tree[0])]
 file_order = []
@@ -103,14 +103,23 @@ for pid in pid_order:
   
 file_out = open(output_file, "w")
 
+out_string = ""
+counter = 0
 for smt_file_name in file_order:
   smt_file = open(smt_file_name, "r")
   contents = smt_file.read()
   contents = re.sub(r'; [0-9]{5}(-[0-9]{5})*\n', "", contents)
   contents = re.sub(r'\(exit\)', "", contents)
-  file_out.write(contents)
+  out_string += contents
   smt_file.close()
+  
+  
+for match in re.findall(r'declare-fun [a-z][0-9]*-[0-9]*', out_string):
+    var_name = re.findall(r'[a-z][0-9]+-[0-9]+', match)[0]
+    letter = re.findall(r'[a-z]', var_name)[0]
+    out_string = re.sub(var_name, letter + str(counter), out_string);
+    counter += 1
+
+file_out.write(out_string)
 file_out.write("(exit)\n")
 file_out.close()
-
-# TODO: Replace variable names in output file
