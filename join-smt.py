@@ -3,7 +3,7 @@
 import argparse
 import os
 import re
-from anytree import NodeMixin, RenderTree  # Requires to install anytree (eg. "pip install anytree")
+from anytree import NodeMixin, RenderTree, PreOrderIter  # Requires to install anytree (eg. "pip install anytree")
 
 
 """The concept is to parse the .smt files in order of their filenames, which consist of source_name.5_digit_pid.smt.
@@ -94,7 +94,23 @@ tree = MyTreeClass.build_tree(pre_tree)
 # Print the tree in a visually pleasent way
 for pre, fill, node in RenderTree(tree[0]):
   print("%s%s" % (pre, node.name))
+  
+pid_order = [node.name for node in PreOrderIter(tree[0])]
+file_order = []
 
-# TODO: Concatenate files
+for pid in pid_order:
+  file_order.append(os.path.dirname(path) + "/" + name + "." + pid + ".smt")
+  
+file_out = open(output_file, "w")
+
+for smt_file_name in file_order:
+  smt_file = open(smt_file_name, "r")
+  contents = smt_file.read()
+  contents = re.sub(r'; [0-9]{5}(-[0-9]{5})*\n', "", contents)
+  contents = re.sub(r'\(exit\)', "", contents)
+  file_out.write(contents)
+  smt_file.close()
+file_out.write("(exit)\n")
+file_out.close()
 
 # TODO: Replace variable names in output file
