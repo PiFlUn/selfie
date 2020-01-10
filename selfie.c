@@ -7626,7 +7626,7 @@ void constrain_beq() {
       pid_chain = string_concat(pid_chain, pid_string);
       printf1("; %s\n", pid_chain);
 
-      smt_binary("and", pvar, bvar);
+      path_condition = smt_binary("and", pvar, bvar);
       pc = pc + imm;
     } else {
       path_condition = smt_binary("and", pvar, smt_unary("not", bvar));
