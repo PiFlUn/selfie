@@ -3,7 +3,7 @@
 import argparse
 import os
 import re
-from anytree import NodeMixin, RenderTree, PreOrderIter  # Requires to install anytree (eg. "pip install anytree")
+from anytree import NodeMixin, RenderTree, PreOrderIter, LevelOrderIter  # Requires to install anytree (eg. "pip install anytree")
 
 
 """The concept is to parse the .smt files in order of their filenames, which consist of source_name.5_digit_pid.smt.
@@ -91,11 +91,11 @@ pre_tree = MyTreeClass.get_tree_structure(smt_files)
 
 tree = MyTreeClass.build_tree(pre_tree)
 
-# Print the tree in a visually pleasent way
+# Print the tree in a visually pleasant way
 # for pre, fill, node in RenderTree(tree[0]):
 #  print("%s%s" % (pre, node.name))
   
-pid_order = [node.name for node in PreOrderIter(tree[0])]
+pid_order = [node.name for node in LevelOrderIter(tree[0])]
 file_order = []
 
 for pid in pid_order:
