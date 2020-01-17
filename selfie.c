@@ -1291,6 +1291,7 @@ uint64_t* symbolic_contexts = (uint64_t*) 0;
 char* path_condition = (char*) 0;
 
 char* pid_chain = (char*) 0;  // chain of pids, updated after forking, used for reconstruction
+uint64_t pid_parent_counter = (uint64_t) 0;
 
 uint64_t* symbolic_memory = (uint64_t*) 0;
 
@@ -7512,6 +7513,19 @@ void do_beq() {
 // Assert: char* pid parameter is always allocated with length 5
 char *format_pid(char *pid){
   uint64_t length;
+  char *index;
+
+  index = string_alloc(1 + 3 + 1);
+  itoa(pid_parent_counter, index, 10, 0);
+  length = string_length(index);
+  string_reverse(index);
+
+  while(length < 3){
+    *(index + length) = '0';
+    length = length + 1;
+  }
+
+  string_reverse(index);
 
   length = string_length(pid);
   string_reverse(pid);
@@ -7522,6 +7536,8 @@ char *format_pid(char *pid){
   }
 
   string_reverse(pid);
+
+  pid = string_concat(pid, index);
 
   return pid;
 }
@@ -7552,7 +7568,7 @@ void replace_pid(char *filename, char *pid){
   // Replace pid
   i = i + 1;
   j = 0;
-  while(j < 5){
+  while(j < 8){
     *(filename + i) = *(pid + j);
     i = i + 1;
     j = j + 1;
@@ -7613,22 +7629,25 @@ void constrain_beq() {
     pid_string = string_alloc(1 + MAX_PID_LENGTH + 1);
     itoa(getpid(), pid_string, 10, 0);
 
+    if(is_child(pid)){
+      pid_parent_counter = 0;
+    }
+
+    pid_string = format_pid(pid_string);
+    replace_pid(smt_name, pid_string);
+    smt_fd = open_write_only(smt_name);
+    output_fd = smt_fd;
+    output_name = smt_name;
+
+    pid_chain = string_concat(pid_chain, "-");
+    pid_chain = string_concat(pid_chain, pid_string);
+    printf1("; %s\n", pid_chain);
+
     if (is_child(pid)) {
-      // store process ID as string to append it later
-
-      pid_string = format_pid(pid_string);
-      replace_pid(smt_name, pid_string);
-      smt_fd = open_write_only(smt_name);
-      output_fd = smt_fd;
-      output_name = smt_name;
-
-      pid_chain = string_concat(pid_chain, "-");
-      pid_chain = string_concat(pid_chain, pid_string);
-      printf1("; %s\n", pid_chain);
-
       path_condition = smt_binary("and", pvar, bvar);
       pc = pc + imm;
     } else {
+      pid_parent_counter = pid_parent_counter + 1;
       path_condition = smt_binary("and", pvar, smt_unary("not", bvar));
 
       // set the merge location only when merging is enabled
@@ -10248,6 +10267,7 @@ uint64_t monster(uint64_t* to_context) {
   pid = string_alloc(1 + MAX_PID_LENGTH + 1);
   itoa(getpid(), pid, 10, 0);
   pid = format_pid(pid);
+  pid_parent_counter = pid_parent_counter + 1;
 
   // use extension ".smt" in name of SMT-LIB file
   buffer = string_alloc(1 + string_length(pid) + 1 + string_length(".smt") + 1);

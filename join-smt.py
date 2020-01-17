@@ -78,7 +78,7 @@ path = parsing()
 name = os.path.basename(path).replace(".c", "", 1)
 # print(name)
 
-smt_files = [f for f in os.listdir(os.path.dirname(path)) if re.match(name + r'\.[0-9]{5}\.smt', f)]
+smt_files = [f for f in os.listdir(os.path.dirname(path)) if re.match(name + r'\.[0-9]{8}\.smt', f)]
 if not smt_files:
   print('There are no .smt files in the same folder as the .c source file.')
   exit()
@@ -108,7 +108,7 @@ counter = 0
 for smt_file_name in file_order:
   smt_file = open(smt_file_name, "r")
   contents = smt_file.read()
-  contents = re.sub(r'; [0-9]{5}(-[0-9]{5})*\n', "", contents)
+  contents = re.sub(r'; [0-9]{8}(-[0-9]{8})*\n', "", contents)
   contents = re.sub(r'\(exit\)', "", contents)
   out_string += contents
   smt_file.close()
