@@ -35,22 +35,36 @@ class MyTreeClass(MyNodeClass, NodeMixin):
       fp = open(os.path.dirname(path) + "/" + file, 'r')
       first_line = fp.readline()
       first_line = first_line.replace("; ", "", 1).replace("\n", "", 1)
-#      print(first_line)
+      #print(first_line)
       fp.close()
       order_list = first_line.split("-")
-#      print(order_list)
+      #print(order_list)
       pre_tree.append(order_list)
       
     return pre_tree
 
   def build_tree(pre_tree):
     tree = []
-    
+    #print(pre_tree)
     for smt in pre_tree:
-      if len(smt) > 1:
-        tree.append(MyTreeClass(smt[-1], parent = MyTreeClass.find_node(smt[-2], tree)))
-      elif len(smt) == 1:
-        tree.append(MyTreeClass(str(pre_tree[0][0])))  # root has no parent
+      print(smt)
+      if len(smt) >= 1:
+        first = 1
+        previous = ""
+        for pid in smt:
+          #print("Pid: " + pid + " Previous: " + previous)
+          if not MyTreeClass.find_node(pid, tree) and first == 0:
+            tree.append(MyTreeClass(pid, parent = MyTreeClass.find_node(previous, tree)))
+            #print("append " + pid + " to " + previous)
+          elif not MyTreeClass.find_node(pid, tree) and first == 1:
+            tree.append(MyTreeClass(pid))
+            #print("add root node " + pid)
+          previous = pid
+          first = 0
+          
+          # tree.append(MyTreeClass(smt[-1], parent = MyTreeClass.find_node(smt[-2], tree)))
+      #elif len(smt) == 1:
+        #tree.append(MyTreeClass(str(pre_tree[0][0])))  # root has no parent
       else:
         print('Something went horribly wrong. Exit.')
         exit()
@@ -76,27 +90,28 @@ def parsing():
 path = parsing()
 # Prepare filenames
 name = os.path.basename(path).replace(".c", "", 1)
-# print(name)
+#print(name)
 
 smt_files = [f for f in os.listdir(os.path.dirname(path)) if re.match(name + r'\.[0-9]{8}\.smt', f)]
 if not smt_files:
   print('There are no .smt files in the same folder as the .c source file.')
   exit()
-# print(smt_files)
+#print(smt_files)
 
 output_file = os.path.dirname(path) + "/" + name + "_par.smt"
-# print(output_file)
+#print(output_file)
 
 pre_tree = MyTreeClass.get_tree_structure(smt_files)
 
 tree = MyTreeClass.build_tree(pre_tree)
 
 # Print the tree in a visually pleasant way
-# for pre, fill, node in RenderTree(tree[0]):
-#  print("%s%s" % (pre, node.name))
+for pre, fill, node in RenderTree(tree[0]):
+  print("%s%s" % (pre, node.name))
   
 pid_order = [node.name for node in LevelOrderIter(tree[0])]
 file_order = []
+print(pid_order)
 
 for pid in pid_order:
   file_order.append(os.path.dirname(path) + "/" + name + "." + pid + ".smt")
