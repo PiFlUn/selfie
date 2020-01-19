@@ -40,7 +40,6 @@ class MyTreeClass(MyNodeClass, NodeMixin):
       order_list = first_line.split("-")
       #print(order_list)
       pre_tree.append(order_list)
-      
     return pre_tree
 
   def build_tree(pre_tree):
@@ -97,6 +96,11 @@ if not smt_files:
   print('There are no .smt files in the same folder as the .c source file.')
   exit()
 #print(smt_files)
+#print("Before sorting")
+#print(smt_files)
+smt_files.sort()
+#print("After sorting")
+#print(smt_files)
 
 output_file = os.path.dirname(path) + "/" + name + "_par.smt"
 #print(output_file)
@@ -109,7 +113,7 @@ tree = MyTreeClass.build_tree(pre_tree)
 for pre, fill, node in RenderTree(tree[0]):
   print("%s%s" % (pre, node.name))
   
-pid_order = [node.name for node in LevelOrderIter(tree[0])]
+pid_order = [node.name for node in PreOrderIter(tree[0])]
 file_order = []
 print(pid_order)
 
